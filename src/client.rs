@@ -6,7 +6,7 @@ use log::*;
 use tokio::sync::Mutex as AsyncMutex;
 
 pub struct Client {
-    pub conn: AsyncMutex<ConnectionWriter>,
+    conn: AsyncMutex<ConnectionWriter>,
     quit: Quit,
 }
 
@@ -23,7 +23,7 @@ impl Client {
     }
 
     async fn handle(&self, msg: &ConnectDatagram) {
-        println!("{}", msg.recipient());
+        info!("{}", msg.recipient());
     }
 
     async fn run_loop(self, mut reader: ConnectionReader) {
@@ -44,18 +44,18 @@ impl Client {
                 msg = reader.next() => match msg {
                     Some(msg) => self.handle(&msg).await,
                     None => {
-                        trace!("Server closed connection");
+                        trace!("server closed connection");
                         break;
                     }
                 },
                 _ = quit.recv() => {
-                    trace!("Quit signal received");
+                    trace!("quit signal received");
                     break;
                 },
-                else => unreachable!("Quit channel broke"),
+                else => unreachable!("quit channel broke"),
             }
         }
 
-        info!("Disconnected");
+        info!("disconnected");
     }
 }

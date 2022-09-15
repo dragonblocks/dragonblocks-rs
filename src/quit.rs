@@ -1,7 +1,7 @@
 use log::*;
 use tokio::sync::{broadcast, mpsc};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Quit {
     signal: broadcast::Sender<()>,
 

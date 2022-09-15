@@ -1,3 +1,4 @@
+use log::*;
 use tokio::sync::{broadcast, mpsc};
 
 #[derive(Clone)]
@@ -17,6 +18,7 @@ impl Quit {
     }
 
     pub fn quit(&self) {
+        info!("Shutting down");
         self.signal.send(()).unwrap();
     }
 

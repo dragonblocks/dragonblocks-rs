@@ -1,56 +1,15 @@
-#![allow(unused)]
-
 pub mod pkts;
+mod remote_client;
 
-use super::pkt;
-use super::quit::Quit;
-use connect::{tcp::TcpListener, ConnectDatagram, ConnectionReader, ConnectionWriter, StreamExt};
-use pkts::*;
+use crate::quit::Quit;
+use connect::{tcp::TcpListener, StreamExt};
+use log::*;
+use remote_client::{Client, ClientId};
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock, Weak},
+    sync::{Arc, RwLock},
 };
-use tokio::{
-    sync::{broadcast, mpsc, Mutex as AsyncMutex},
-    task,
-};
-
-type ClientId = u64;
-
-pub struct Client {
-    pub id: ClientId,
-    pub conn: AsyncMutex<ConnectionWriter>,
-    pub server: Weak<ServerData>,
-    quit: Quit,
-}
-
-impl Client {
-    async fn login(&self, pkt: &Login) {
-        println!("login {} {}", pkt.name, pkt.pwd);
-    }
-
-    async fn run(&self, mut reader: ConnectionReader) {
-        let mut quit = self.quit.subscribe();
-
-        loop {
-            tokio::select! {
-                Some(msg) = reader.next() => match msg.recipient() {
-                    LOGIN if let Some(pkt) = pkt::get::<Login>(&msg) =>
-                        self.login(&pkt).await,
-                    _ => {},
-                },
-                _ = quit.recv() => break,
-                else => break,
-            }
-        }
-
-        if let Some(server) = self.server.upgrade() {
-            server.clients_by_id.write().unwrap().remove(&self.id);
-        }
-
-        println!("disconnect {}", self.id);
-    }
-}
+use tokio::{sync::Mutex as AsyncMutex, task};
 
 pub struct ServerData {
     clients_by_id: RwLock<HashMap<ClientId, Arc<Client>>>,
@@ -65,8 +24,6 @@ pub struct Server {
 
 impl Server {
     pub async fn new(addr: &str, quit: Quit) -> Self {
-        println!("listen {addr}");
-
         Self {
             quit,
             listener: TcpListener::bind(addr).await.unwrap(),
@@ -83,8 +40,10 @@ impl Server {
 
         loop {
             tokio::select! {
-                Some(conn) = self.listener.next() => {
-                    println!("connect {}", conn.peer_addr());
+                conn = self.listener.next() => {
+                    let conn = conn.expect("Listener interrupted");
+
+                    info!("Client from {} assigned id {next_id}", conn.peer_addr());
 
                     let (reader, writer) = conn.split();
                     let client = Arc::new(Client {
@@ -104,11 +63,14 @@ impl Server {
 
                     task::spawn(async move { (*client).run(reader).await });
                 },
-                _ = quit.recv() => break,
-                else => break,
+                _ = quit.recv() => {
+                    trace!("Quit signal received");
+                    break;
+                },
+                else => unreachable!("Quit channel broke"),
             }
         }
 
-        println!("shutdown");
+        info!("Stopped server");
     }
 }

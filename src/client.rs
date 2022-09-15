@@ -1,7 +1,8 @@
-use super::pkt;
-use super::quit::Quit;
-use super::server::pkts as server_bound;
-use connect::{Connection, ConnectionReader, ConnectionWriter, StreamExt};
+use crate::pkt;
+use crate::quit::Quit;
+use crate::server::pkts as server_bound;
+use connect::{ConnectDatagram, Connection, ConnectionReader, ConnectionWriter, StreamExt};
+use log::*;
 use tokio::sync::Mutex as AsyncMutex;
 
 pub struct Client {
@@ -13,13 +14,16 @@ impl Client {
     pub async fn run(addr: &str, quit: Quit) {
         let (reader, writer) = Connection::tcp_client(addr).await.unwrap().split();
 
-        println!("client connect {addr}");
         Self {
             conn: AsyncMutex::new(writer),
             quit,
         }
         .run_loop(reader)
         .await;
+    }
+
+    async fn handle(&self, msg: &ConnectDatagram) {
+        println!("{}", msg.recipient());
     }
 
     async fn run_loop(self, mut reader: ConnectionReader) {
@@ -37,14 +41,21 @@ impl Client {
 
         loop {
             tokio::select! {
-                Some(msg) = reader.next() => {
-                    println!("{}", msg.recipient());
+                msg = reader.next() => match msg {
+                    Some(msg) => self.handle(&msg).await,
+                    None => {
+                        trace!("Server closed connection");
+                        break;
+                    }
                 },
-                _ = quit.recv() => break,
-                else => break,
+                _ = quit.recv() => {
+                    trace!("Quit signal received");
+                    break;
+                },
+                else => unreachable!("Quit channel broke"),
             }
         }
 
-        println!("client disconnect");
+        info!("Disconnected");
     }
 }

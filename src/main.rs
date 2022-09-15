@@ -43,6 +43,8 @@ enum Mode {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
+    env_logger::init();
+
     let args = Args::parse();
 
     let (quit, mut quit_confirm) = Quit::new();

@@ -1,0 +1,11 @@
+[package]
+name = "dragonblocks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "3.2.15", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0.144", features = ["derive"] }
+serde_cbor = "0.11.2"
+connect = "0.2.4"
